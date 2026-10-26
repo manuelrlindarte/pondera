@@ -1,0 +1,18 @@
+{
+  "name": "pondera",
+  "version": "1.0.0",
+  "description": "Pondera: landing, calculadora y gestión de solicitudes",
+  "main": "server.js",
+  "scripts": {
+    "start": "node --no-warnings server.js",
+    "dev": "ADMIN_PASSWORD=cambiar node --watch server.js"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^4.21.2"
+  },
+  "engines": {
+    "node": ">=22.13"
+  }
+}

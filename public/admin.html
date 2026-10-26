@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Pondera · Solicitudes</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root{--bg:#F5F6F3;--surface:#fff;--fg:#14202B;--muted:#5B6873;--line:#DCE1E2;--brass:#B98A3E;--ink:#0E1A24;--ok:#1F7A5C;--bad:#B4412F;color-scheme:light}
+@media (prefers-color-scheme:dark){:root{--bg:#0F1418;--surface:#161D23;--fg:#E6EBEE;--muted:#97A4AE;--line:#26313A;--brass:#D2A75E;--ok:#3FB48B;--bad:#E2735F;color-scheme:dark}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 "IBM Plex Sans",system-ui,sans-serif}
+header{background:var(--ink);color:#EEF2F4;padding:16px max(16px,env(safe-area-inset-left))}
+header .in{max-width:1200px;margin:0 auto;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+main{max-width:1200px;margin:0 auto;padding:24px 16px}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:20px}
+.kpis div{background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:14px}
+.kpis small{color:var(--muted);font:500 .7rem "IBM Plex Mono",monospace;text-transform:uppercase;letter-spacing:.08em}
+.kpis b{display:block;font:500 1.6rem "IBM Plex Mono",monospace}
+.bar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+input,select,textarea,button,a.btn{font:inherit;color:var(--fg);background:var(--surface);border:1px solid var(--line);border-radius:4px;padding:.5rem .7rem}
+a.btn,button{cursor:pointer;text-decoration:none}
+.box{overflow-x:auto;background:var(--surface);border:1px solid var(--line);border-radius:6px}
+table{border-collapse:collapse;width:100%;min-width:980px}
+th,td{padding:10px 12px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+th{font:500 .7rem "IBM Plex Mono",monospace;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+.mono{font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums}
+.muted{color:var(--muted);font-size:.85rem}
+.alert{font:500 .72rem "IBM Plex Mono",monospace;padding:2px 6px;border-radius:3px}
+.alert.ok{color:var(--ok);border:1px solid var(--ok)}.alert.bad{color:var(--bad);border:1px solid var(--bad)}
+textarea{width:100%;min-width:180px}
+.empty{padding:40px;text-align:center;color:var(--muted)}
+</style>
+</head>
+<body>
+<header><div class="in"><b>Pondera · Solicitudes</b><span class="muted" style="color:#9FB0BD">Panel privado</span></div></header>
+<main>
+  <div class="kpis" id="kpis"></div>
+  <div class="bar">
+    <input id="q" placeholder="Buscar por nombre, WhatsApp o negocio">
+    <select id="f"><option value="">Todos los estados</option></select>
+    <a class="btn" href="/api/admin/leads.csv">Exportar CSV</a>
+  </div>
+  <div class="box"><table>
+    <thead><tr><th>Fecha</th><th>Contacto</th><th>Negocio</th><th>Calculadora</th><th>Estado</th><th>Notas</th></tr></thead>
+    <tbody id="rows"><tr><td colspan="6" class="empty">Cargando solicitudes…</td></tr></tbody>
+  </table></div>
+</main>
+<script>
+let data={leads:[],estados:[]};
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const cop=n=>n==null?'—':new Intl.NumberFormat('es-CO').format(n);
+async function load(){
+  const r=await fetch('/api/admin/leads'); data=await r.json();
+  const f=$('f'); if(f.options.length===1) data.estados.forEach(e=>f.add(new Option(e,e)));
+  render();
+}
+function render(){
+  const L=data.leads, c=e=>L.filter(l=>l.estado===e).length;
+  $('kpis').innerHTML=[['Solicitudes',L.length],['Nuevas',c('nuevo')],['En propuesta',c('propuesta')],['Pagadas',c('pagado')+c('entregado')]]
+    .map(([k,v])=>`<div><small>${k}</small><b>${v}</b></div>`).join('');
+  const q=$('q').value.toLowerCase(), fe=$('f').value;
+  const rows=L.filter(l=>(!fe||l.estado===fe)&&(!q||[l.nombre,l.whatsapp,l.tipo,l.detalle].join(' ').toLowerCase().includes(q)));
+  if(!rows.length){$('rows').innerHTML='<tr><td colspan="6" class="empty">Aún no hay solicitudes. Aparecerán aquí cuando alguien envíe el formulario de la landing.</td></tr>';return;}
+  $('rows').innerHTML=rows.map(l=>{
+    const r=l.calc&&l.calc.resultado, e=l.calc&&l.calc.entrada;
+    const calc=r?`<span class="mono">Precio ${cop(e.precio)}<br>Util. decl. ${cop(e.utilidad)}<br>Util. ajust. ${cop(r.utilidadAjustada)}</span><br><span class="alert ${r.alerta==='ok'?'ok':'bad'}">${r.alerta}</span>`:'<span class="muted">Sin datos</span>';
+    return `<tr>
+      <td class="mono">${esc(l.created_at)}</td>
+      <td><b>${esc(l.nombre)}</b><br><span class="mono">${esc(l.whatsapp)}</span><br><span class="muted">${esc(l.email)}</span></td>
+      <td>${esc(l.tipo)}<br><span class="muted">${esc(l.rango)} · ${esc(l.plazo)}</span><br><span class="muted">${esc(l.detalle)}</span></td>
+      <td>${calc}</td>
+      <td><select data-id="${l.id}" class="estado">${data.estados.map(s=>`<option ${s===l.estado?'selected':''}>${s}</option>`).join('')}</select></td>
+      <td><textarea data-id="${l.id}" class="notas" rows="2">${esc(l.notas)}</textarea></td></tr>`;
+  }).join('');
+}
+async function patch(id,body){await fetch('/api/admin/leads/'+id,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});const l=data.leads.find(x=>x.id==id);Object.assign(l,body);render();}
+document.addEventListener('change',e=>{if(e.target.classList.contains('estado'))patch(e.target.dataset.id,{estado:e.target.value});if(e.target.classList.contains('notas'))patch(e.target.dataset.id,{notas:e.target.value});});
+$('q').addEventListener('input',render);$('f').addEventListener('change',render);
+load();
+</script>
+</body>
+</html>
